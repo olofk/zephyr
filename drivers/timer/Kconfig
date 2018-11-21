@@ -119,6 +119,14 @@ config NRF_RTC_TIMER
 	  Counter NRF_RTC1 and provides the standard "system clock driver"
 	  interfaces.
 
+config SERV_TIMER
+	bool "SERV Timer"
+	depends on SOC_FAMILY_RISCV_PRIVILEGE
+#	select TICKLESS_CAPABLE
+	help
+	  This module implements a kernel device driver for the SERV
+	  timer driver. It provides the standard "system clock driver" interfaces.
+
 config RISCV_MACHINE_TIMER
 	bool "RISCV Machine Timer"
 	depends on SOC_FAMILY_RISCV_PRIVILEGE
