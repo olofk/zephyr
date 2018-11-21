@@ -170,6 +170,13 @@ config RISCV_MACHINE_TIMER
 	  This module implements a kernel device driver for the generic RISCV machine
 	  timer driver. It provides the standard "system clock driver" interfaces.
 
+config SERV_TIMER
+	bool "SERV Timer"
+	depends on SOC_FAMILY_RISCV_PRIVILEGE
+	help
+	  This module implements a kernel device driver for the SERV
+	  timer driver. It provides the standard "system clock driver" interfaces.
+
 config NATIVE_POSIX_TIMER
 	bool "(POSIX) native_posix timer driver"
 	default y
