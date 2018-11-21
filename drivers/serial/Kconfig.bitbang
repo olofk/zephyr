@@ -1,0 +1,6 @@
+menuconfig UART_BITBANG
+	bool "SERV bitbang serial driver"
+	select SERIAL_HAS_DRIVER
+	help
+	  This option enables the SERV bitbang serial driver.
+	  Hardcoded to send at ~57600 baud rate with a 16MHz clock
