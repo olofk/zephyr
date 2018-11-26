@@ -1,5 +1,9 @@
 if SOC_SERIES_RISCV32_SERV
 
+config COMPILER_OPT
+       string
+       default "-march=RV32I"
+
 config SOC_SERIES
 	string
 	default "serv"
@@ -49,7 +53,7 @@ config RISCV_RAM_BASE_ADDR
 
 config RISCV_RAM_SIZE
 	hex
-	default 0x40000
+	default 0x8000
 
 
 
