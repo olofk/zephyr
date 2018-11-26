@@ -1,0 +1,6 @@
+if BOARD_SERVICE
+
+config BOARD
+	default "service"
+
+endif
