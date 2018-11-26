@@ -1,0 +1,11 @@
+identifier: service
+name: SERV for iCE40
+type: mcu
+arch: riscv32
+toolchain:
+  - zephyr
+ram: 8
+testing:
+  ignore_tags:
+    - net
+    - bluetooth

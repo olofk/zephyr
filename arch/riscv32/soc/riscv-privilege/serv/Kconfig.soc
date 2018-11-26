@@ -1,0 +1,9 @@
+choice
+prompt "SERV - SErial RISC-V"
+depends on SOC_SERIES_RISCV32_SERV
+
+config SOC_RISCV32_SERV
+	bool "SERV"
+	select ATOMIC_OPERATIONS_C
+
+endchoice

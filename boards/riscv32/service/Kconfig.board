@@ -1,0 +1,3 @@
+config BOARD_SERVICE
+	bool "SERV for iCE40"
+	depends on SOC_RISCV32_SERV

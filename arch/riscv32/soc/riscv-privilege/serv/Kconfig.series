@@ -1,0 +1,6 @@
+config SOC_SERIES_RISCV32_SERV
+	bool "SERV - SErial RISC-V"
+	depends on RISCV32
+	select SOC_FAMILY_RISCV_PRIVILEGE
+	help
+	Enable support for SERV
