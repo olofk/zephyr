@@ -1,0 +1,43 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	compatible = "ChipsAlliance,SweRVolf-dev";
+	model = "ChipsAlliance,SweRVolf";
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		cpu@0 {
+			clock-frequency = <0>;
+			compatible = "ChipsAlliance,SweRV-EH1-v1.2", "riscv";
+			device_type = "cpu";
+			reg = <0>;
+			riscv,isa = "rv32imac";
+			status = "okay";
+			timebase-frequency = <32768>;
+			hlic: interrupt-controller {
+				#interrupt-cells = <1>;
+				compatible = "riscv,cpu-intc";
+				interrupt-controller;
+			};
+		};
+	};
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "ChipsAlliance,SweRVolf-soc", "simple-bus";
+		ranges;
+
+		uart0: uart@80002000 {
+			compatible = "ns16550";
+			clock-frequency = <25000000>;
+			reg = <0x80002000 0x1000>;
+			reg-names = "control";
+			label = "uart0";
+			status = "disabled";
+		};
+	};
+};
