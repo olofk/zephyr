@@ -40,6 +40,9 @@ config GPIO_MMIO32
 
 endif # GPIO
 
+config SPI_SIMPLE_SPI_BUS_WIDTH
+       default 64
+
 config XIP
 	bool
 	default n
