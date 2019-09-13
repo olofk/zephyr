@@ -9,7 +9,18 @@
 #include <device.h>
 #include <stdio.h>
 
-#define FLASH_TEST_REGION_OFFSET 0xff000
+#if (CONFIG_SPI_FLASH_W25QXXDV - 0)
+/* NB: W25Q16DV is a JEDEC spi-nor device, but has a separate driver. */
+#define FLASH_DEVICE CONFIG_SPI_FLASH_W25QXXDV_DRV_NAME
+#define FLASH_NAME "W25QXXDV"
+#elif (CONFIG_SPI_NOR - 0) || defined(DT_JEDEC_SPI_NOR_0_LABEL)
+#define FLASH_DEVICE DT_JEDEC_SPI_NOR_0_LABEL
+#define FLASH_NAME "JEDEC SPI-NOR"
+#else
+#error Unsupported flash driver
+#endif
+
+#define FLASH_TEST_REGION_OFFSET 0x01f000
 #define FLASH_SECTOR_SIZE        4096
 #define TEST_DATA_BYTE_0         0x55
 #define TEST_DATA_BYTE_1         0xaa
@@ -20,20 +31,27 @@ void main(void)
 	struct device *flash_dev;
 	u8_t buf[TEST_DATA_LEN];
 
-	printf("\nW25QXXDV SPI flash testing\n");
+	printf("\n" FLASH_NAME " SPI flash testing\n");
 	printf("==========================\n");
 
-	flash_dev = device_get_binding(CONFIG_SPI_FLASH_W25QXXDV_DRV_NAME);
+	flash_dev = device_get_binding(FLASH_DEVICE);
 
 	if (!flash_dev) {
-		printf("SPI flash driver was not found!\n");
+		printf("SPI flash driver %s was not found!\n", FLASH_DEVICE);
 		return;
 	}
 
-	/* Write protection needs to be disabled in w25qxxdv flash before
-	 * each write or erase. This is because the flash component turns
-	 * on write protection automatically after completion of write and
-	 * erase operations.
+	u8_t rbuf[128];
+	if (flash_read(flash_dev, 0, rbuf, 128) != 0)
+	  printf("Read failed\n");
+	else
+	  for (int i=0;i<128;i++)
+	    printf("%s%02x", (i%8) ? " " : "\n", rbuf[i]);
+
+	/* Write protection needs to be disabled before each write or
+	 * erase, since the flash component turns on write protection
+	 * automatically after completion of write and erase
+	 * operations.
 	 */
 	printf("\nTest 1: Flash erase\n");
 	flash_write_protection_set(flash_dev, false);
