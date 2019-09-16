@@ -10,23 +10,10 @@
 #include <soc_common.h>
 #include <generated_dts_board.h>
 
-#define DT_SIMPLE_SPI_0_BASE_ADDRESS 0x80001040
-#define DT_SIMPLE_SPI_0_LABEL "spi0"
-
-#define DT_JEDEC_SPI_NOR_0_LABEL "what_should_be_here"
-#define DT_JEDEC_SPI_NOR_0_SIZE (16*1024*1024)
-#define DT_JEDEC_SPI_NOR_0_BUS_NAME DT_SIMPLE_SPI_0_LABEL
-#define DT_JEDEC_SPI_NOR_0_SPI_MAX_FREQUENCY 2000000
-#define DT_JEDEC_SPI_NOR_0_BASE_ADDRESS 0
-#define DT_JEDEC_SPI_NOR_0_JEDEC_ID_0 0x01
-#define DT_JEDEC_SPI_NOR_0_JEDEC_ID_1 0x20
-#define DT_JEDEC_SPI_NOR_0_JEDEC_ID_2 0x18
-#define DT_JEDEC_SPI_NOR_0_WRITE_BLOCK_SIZE 256
-#define DT_JEDEC_SPI_NOR_0_ERASE_BLOCK_SIZE 4096
-
-
 #define LED0_GPIO_CONTROLLER         "LED0"
 #define LED0_GPIO_PIN                0
+#define LED0_GPIO_ADDRESS            0x80001010
+#define LED0_GPIO_MASK               0x00000001
 
 #define RISCV_MTIME_BASE             0x80001020
 #define RISCV_MTIMECMP_BASE          0x80001028

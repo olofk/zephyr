@@ -123,7 +123,7 @@ int simple_spi_init(struct device *dev)
 
 static struct simple_spi_cfg simple_spi_cfg_0 =
 {
-	.base = DT_SIMPLE_SPI_0_BASE_ADDRESS,
+	.base = DT_OPENCORES_SPI_SIMPLE_0_CONTROL_BASE_ADDRESS,
 };
 
 static struct simple_spi_data simple_spi_data_0 =
@@ -133,7 +133,7 @@ static struct simple_spi_data simple_spi_data_0 =
 };
 
 DEVICE_AND_API_INIT(simple_spi_0,
-		    DT_SIMPLE_SPI_0_LABEL,
+		    DT_OPENCORES_SPI_SIMPLE_0_LABEL,
 		    simple_spi_init,
 		    &simple_spi_data_0,
 		    &simple_spi_cfg_0,
