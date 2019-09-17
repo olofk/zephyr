@@ -118,6 +118,13 @@ int simple_spi_init(struct device *dev)
 
 	/* Make sure the context is unlocked */
 	spi_context_unlock_unconditionally(&SPI_DATA(dev)->ctx);
+
+	/* Initial clock stucks high, so add this workaround */
+	sys_write8(SPI_SPCR_SPE, SPI_REG(dev, SPI_SPCR));
+	sys_write8(0, SPI_REG(dev, SPI_SPDR));
+	while (sys_read8(SPI_REG(dev, SPI_SPSR)) & 0x1);
+	sys_read8(SPI_REG(dev, SPI_SPDR));
+
 	return 0;
 }
 
