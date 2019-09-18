@@ -276,7 +276,8 @@ static bool sdhc_retry_ok(struct sdhc_retry *retry)
 /* Asserts or deasserts chip select */
 static void sdhc_set_cs(struct sdhc_data *data, int value)
 {
-	gpio_pin_write(data->cs, data->pin, value);
+	if (data->cs)
+		gpio_pin_write(data->cs, data->pin, value);
 }
 
 /* Receives a fixed number of bytes */
@@ -902,14 +903,21 @@ static int sdhc_init(struct device *dev)
 	data->cfg.frequency = SDHC_INITIAL_SPEED;
 	data->cfg.operation = SPI_WORD_SET(8) | SPI_HOLD_ON_CS;
 	data->cfg.slave = DT_ZEPHYR_MMC_SPI_SLOT_0_BASE_ADDRESS;
+	data->cs = NULL;
+#ifdef DT_ZEPHYR_MMC_SPI_SLOT_0_CS_GPIO_CONTROLLER
 	data->cs = device_get_binding(DT_ZEPHYR_MMC_SPI_SLOT_0_CS_GPIO_CONTROLLER);
 	__ASSERT_NO_MSG(data->cs != NULL);
-
 	data->pin = DT_ZEPHYR_MMC_SPI_SLOT_0_CS_GPIO_PIN;
+#endif
 
 	disk_sdhc_init(dev);
 
-	return gpio_pin_configure(data->cs, data->pin, GPIO_DIR_OUT);
+	if (data->cs) {
+		return gpio_pin_configure(data->cs, data->pin, GPIO_DIR_OUT);
+	}
+	else {
+		return 0;
+	}
 }
 
 static struct device *sdhc_get_device(void) { return DEVICE_GET(sdhc_0); }

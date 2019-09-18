@@ -65,15 +65,20 @@ int simple_spi_transceive(struct device *dev,
 
 	spi_context_buffers_setup(ctx, tx_bufs, rx_bufs, 1);
 
-	while (spi_context_tx_buf_on(ctx) || spi_context_tx_buf_on(ctx)) {
+	while (spi_context_tx_buf_on(ctx) || spi_context_rx_buf_on(ctx)) {
 		size_t cur_xfer_len = spi_context_longest_current_buf(ctx);
 		for (size_t i = 0; i < cur_xfer_len; i++) {
 
 			/* Write byte */
-			sys_write8(*ctx->tx_buf, SPI_REG(dev, SPI_SPDR));
-			__asm__ volatile ("fence;\n\t");
+			if (spi_context_tx_buf_on(ctx)) {
+				sys_write8(*ctx->tx_buf, SPI_REG(dev, SPI_SPDR));
+				spi_context_update_tx(ctx, 1, 1);
+			}
+			else {
+				sys_write8(0, SPI_REG(dev, SPI_SPDR));
+			}
 
-			spi_context_update_tx(ctx, 1, 1);
+			__asm__ volatile ("fence;\n\t");
 
 			/* Wait for rx FIFO empty flag to clear */
 			while (sys_read8(SPI_REG(dev, SPI_SPSR)) & 0x1);
@@ -128,6 +133,7 @@ int simple_spi_init(struct device *dev)
 	return 0;
 }
 
+#ifdef DT_OPENCORES_SPI_SIMPLE_0
 static struct simple_spi_cfg simple_spi_cfg_0 =
 {
 	.base = DT_OPENCORES_SPI_SIMPLE_0_CONTROL_BASE_ADDRESS,
@@ -147,3 +153,26 @@ DEVICE_AND_API_INIT(simple_spi_0,
 		    POST_KERNEL,
 		    CONFIG_SPI_INIT_PRIORITY,
 		    &simple_spi_api);
+#endif
+
+#ifdef DT_OPENCORES_SPI_SIMPLE_1
+static struct simple_spi_cfg simple_spi_cfg_1 =
+{
+	.base = DT_OPENCORES_SPI_SIMPLE_1_CONTROL_BASE_ADDRESS,
+};
+
+static struct simple_spi_data simple_spi_data_1 =
+{
+	SPI_CONTEXT_INIT_LOCK(simple_spi_data_1, ctx),
+	SPI_CONTEXT_INIT_SYNC(simple_spi_data_1, ctx),
+};
+
+DEVICE_AND_API_INIT(simple_spi_1,
+		    DT_OPENCORES_SPI_SIMPLE_1_LABEL,
+		    simple_spi_init,
+		    &simple_spi_data_1,
+		    &simple_spi_cfg_1,
+		    POST_KERNEL,
+		    CONFIG_SPI_INIT_PRIORITY,
+		    &simple_spi_api);
+#endif
