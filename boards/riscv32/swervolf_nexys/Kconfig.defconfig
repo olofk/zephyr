@@ -3,4 +3,8 @@ if BOARD_SWERVOLF_NEXYS
 config BOARD
 	default "swervolf_nexys"
 
+config ETH_ETHOC
+	default y
+
+
 endif

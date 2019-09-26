@@ -59,5 +59,13 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
+
+		eth: ethernet@123 {
+			compatible = "opencores,ethoc";
+			reg = <123 123>;
+			status = "disabled";
+			local-mac-address = [00 00 94 00 83 00];
+			label = "ETH";
+		};
 	};
 };

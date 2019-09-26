@@ -20,6 +20,14 @@ LOG_MODULE_REGISTER(net_ipv4_autoconf_sample, LOG_LEVEL_DBG);
 #include <net/net_context.h>
 #include <net/net_mgmt.h>
 
+#if 1
+#undef LOG_ERR
+#define LOG_ERR printk
+#undef LOG_INF
+#define LOG_INF printk
+#define STATIC 
+#endif
+
 static struct net_mgmt_event_callback mgmt_cb;
 
 static void handler(struct net_mgmt_event_callback *cb,

@@ -1,0 +1,21 @@
+# Kconfig - ETHOC Ethernet driver configuration options
+
+#
+# Copyright (c) 2019 Qamcom
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+menuconfig ETH_ETHOC
+	bool "Ethoc Ethernet driver"
+	help
+	  Enable Ethoc Ethernet driver.  Note, this driver performs one shot PHY
+	  setup.  There is no support for PHY disconnect, reconnect or
+	  configuration change.
+
+if ETH_ETHOC
+
+config ETH_ETHOC_TEST
+       def_int 8
+
+endif # ETH_ETHOC
