@@ -186,7 +186,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #define	ETHOC_BUFSIZ		1536
 
 #define CONFIG_ETHOC_BD_TX_NUM 8
-#define CONFIG_ETHOC_BD_RX_NUM 24
+#define CONFIG_ETHOC_BD_RX_NUM 8
 
 #define PRIORITY  7
 #define ETHOC_THREAD_STACK_SIZE 2048
@@ -292,15 +292,7 @@ STATIC void ethoc_set_mac_address(struct eth_context *ctx)
 
 	ethoc_write(ctx, MAC_ADDR0, (mac[2] << 24) | (mac[3] << 16) |
 				     (mac[4] <<  8) | (mac[5] <<  0));
-	printk ("write MAC_ADDR0 %x\n", (mac[2] << 24) | (mac[3] << 16) |
-				     (mac[4] <<  8) | (mac[5] <<  0));
 	ethoc_write(ctx, MAC_ADDR1, (mac[0] <<  8) | (mac[1] <<  0));
-	printk ("write MAC_ADDR1 %x\n", (mac[0] <<  8) | (mac[1] <<  0));
-
-	reg1 = ethoc_read(ctx, MAC_ADDR0);
-	printk ("read 1 MAC_ADDR0 %x\n", reg1);
-	reg2 = ethoc_read(ctx, MAC_ADDR1);
-	printk ("read 1 MAC_ADDR1 %x\n", reg2);
 }
 
 STATIC int ethoc_read_mac_address(struct eth_context *ctx)
@@ -309,14 +301,12 @@ STATIC int ethoc_read_mac_address(struct eth_context *ctx)
 	u32_t reg;
 
 	reg = ethoc_read(ctx, MAC_ADDR0);
-	printk ("read 2 MAC_ADDR0 %x\n", reg);
 	mac[2] = (reg >> 24) & 0xff;
 	mac[3] = (reg >> 16) & 0xff;
 	mac[4] = (reg >>  8) & 0xff;
 	mac[5] = (reg >>  0) & 0xff;
 
 	reg = ethoc_read(ctx, MAC_ADDR1);
-	printk ("read 2 MAC_ADDR1 %x\n", reg);
 	mac[0] = (reg >>  8) & 0xff;
 	mac[1] = (reg >>  0) & 0xff;
 
@@ -348,13 +338,6 @@ STATIC void ethoc_reset(struct eth_context *ctx)
 	ethoc_write(ctx, INT_MASK, 0);
 
 	#if 0
-	/* enable tx and rx */
-	tmp = ethoc_read(ctx, MODER);
-	tmp |= MODER_TXEN;
-
-	tmp |= MODER_PRO;
-	#endif
-	#if 0
 	tmp = ethoc_read(ctx, MODER);
 	tmp |= MODER_LOOP | MODER_PRO;
 	ethoc_write(ctx, MODER, tmp);
@@ -373,7 +356,7 @@ STATIC int ethoc_check_phy(struct eth_context *ctx)
 		return -1;
 	}
 
-	printk ("read phy id %x %x\n", phyid1, phyid2);
+	LOG_DBG ("read phy id %x %x\n", phyid1, phyid2);
 
 	return ((phyid1 == 0xFFFF && phyid2 == 0xFFFF) ||
 	    (phyid1 == 0x0 && phyid2 == 0x0));
@@ -423,7 +406,6 @@ void ethoc_advertise_caps(struct eth_context *ctx)
 	aneg_adv |= 0xDE0;
 	ethoc_phy_regwrite(ctx, ETHOC_PHY_ANEG_ADV, aneg_adv);
 	ethoc_phy_regread(ctx, ETHOC_PHY_ANEG_ADV, &aneg_adv);
-	printk ("phy read back ETHOC_PHY_ANEG_ADV %x\n", aneg_adv);
 }
 
 void ethoc_establish_link(struct eth_context *ctx)
@@ -434,7 +416,6 @@ void ethoc_establish_link(struct eth_context *ctx)
 	bcr |= (1 << 12) | (1 << 9);
 	ethoc_phy_regwrite(ctx, ETHOC_PHY_BCONTROL, bcr);
 	ethoc_phy_regread(ctx, ETHOC_PHY_BCONTROL, &bcr);
-	printk ("phy read back ETHOC_PHY_BCONTROL %x\n", bcr);
 }
 
 char __aligned(8) pkt_rx_buf[CONFIG_ETHOC_BD_RX_NUM][1600];
@@ -453,7 +434,7 @@ STATIC int ethoc_init_ring(struct eth_context *ctx)
 	ctx->pkt_rx_buf = pkt_rx_buf;
 	ctx->pkt_tx_buf = pkt_tx_buf;
 	if (!ctx->pkt_rx_buf || !ctx->pkt_tx_buf) {
-		printk ("alloc buf fails\n");
+		LOG_ERR ("alloc buf fails\n");
 		return -1;
 	}
 
@@ -500,31 +481,7 @@ int ethoc_init(struct device *dev)
 	ctx->phy = 1;
 	ctx->limit = 40;
 
-	LOG_DBG("ethoc_init\n");
-	printk ("iobase is %x\n", ctx->iobase);
-	printk ("num_bd is %x\n", ctx->num_bd);
-	printk ("num_rx is %x\n", ctx->num_rx);
-	printk ("num_tx is %x\n", ctx->num_tx);
-	printk ("phy is %x\n", ctx->phy);
-
 	ethoc_set_mac_address(ctx);
-	LOG_DBG("write mac %x-%x-%x-%x-%x-%x\n", ctx->mac[0], ctx->mac[1],
-				ctx->mac[2], ctx->mac[3], ctx->mac[4], ctx->mac[5]);
-
-	ethoc_read_mac_address(ctx);
-	LOG_DBG("read mac %x-%x-%x-%x-%x-%x\n", ctx->mac[0], ctx->mac[1],
-				ctx->mac[2], ctx->mac[3], ctx->mac[4], ctx->mac[5]);
-
-	{
-	u32_t testid[] = {0,1,2,3,4,5,6,17,18,26,27,29,30,31};
-	for (int i = 0; i < sizeof(testid)/sizeof(u32_t); i++)
-		{
-			if (ethoc_phy_regread(ctx, testid[i], &phyreset)) {
-				return -1;
-			}
-			printk ("phy read %d %x\n", testid[i], phyreset);
-		}	
-	}
 
 	ethoc_init_ring(ctx);
 
@@ -536,8 +493,6 @@ int ethoc_init(struct device *dev)
 			    (ethoc_read(ctx, MIIMODER) & MIIMODER_NOPRE) |
 			    clkdiv);
 	#endif
-
-	printk ("read MIIMODER %x\n", ethoc_read(ctx, MIIMODER));
 
 	/* Configure MAC addresses */
 	ethoc_set_mac_address(ctx);
@@ -572,14 +527,6 @@ int ethoc_init(struct device *dev)
 	ethoc_advertise_caps(ctx);
 	ethoc_establish_link(ctx);
 
-	#endif
-
-	#if 0
-	{
-	u32_t val;
-	while ((0 == ethoc_phy_regread(ctx, ETHOC_PHY_BSTATUS, &val))
-			&& ((val & 0x4) != 0x4));
-	}
 	#endif
 
 	LOG_DBG("ethoc_init end\n");
@@ -630,7 +577,7 @@ STATIC int ethoc_tx(struct eth_context *ctx)
 			return 0;
 		}
 
-		printk("proc: eth_tx bd.stat 0x%x\n", bd.stat);
+		LOG_DBG("proc: eth_tx bd.stat 0x%x\n", bd.stat);
 
 		if (ctx->pkt_tx[ctx->dty_tx]) {
 			net_pkt_unref(ctx->pkt_tx[ctx->dty_tx]);
@@ -676,7 +623,7 @@ STATIC int ethoc_rx(struct eth_context *ctx)
 			continue;
 		}
 
-		printk("proc: eth_rx bd.stat 0x%x\n", bd.stat);
+		LOG_DBG("proc: eth_rx bd.stat 0x%x\n", bd.stat);
 
 		if (ethoc_update_rx_stats(ctx, &bd) == 0) {
 			
@@ -717,10 +664,12 @@ STATIC int ethoc_rx(struct eth_context *ctx)
 				return -1;
 			}
 
+			#if 0
 			printk("proc: eth_rx receive 1 packets %d\n", size);
 			for (int i = 0; i < size; i++)
 				printk("%s%02x", (i%16==0)?"\n":" ", ctx->pkt_rx_buf[i]);
 			printk("\n");
+			#endif
 		}
 
 		/* clear the buffer descriptor so it can be reused */
@@ -779,10 +728,6 @@ void ethoc_thread(void *a, void *b, void *c)
 	u32_t i = 0;
 	u32_t tmp = 0;
 
-	u32_t test = 0x12345678;
-	printk ("test is %x %x %x %x\n", ((u8_t *)&test)[0], ((u8_t *)&test)[1], 
-									((u8_t *)&test)[2], ((u8_t *)&test)[3]);
-
 	/* wait auto negotiation done */
 	do {
 		if (ethoc_phy_regread(ctx, ETHOC_PHY_CS, &tmp)) {
@@ -812,7 +757,7 @@ void ethoc_thread(void *a, void *b, void *c)
     while (1) {
         eth_ethoc_txrx(ctx);
 		k_sleep(1);
-		#if 1
+		#if 0
 		{
 		if (i++ % 5000 == 0)
 		{	 
@@ -915,10 +860,12 @@ STATIC int eth_tx(struct device *dev, struct net_pkt *pkt)
 
 	bd.stat |= TX_BD_READY;
 	ethoc_write_bd(ctx, entry, &bd);
+	#if 0
 	printk("proc: eth_tx send 1 packets %d\n", total_len);
 	for (int i = 0; i < total_len; i++)
 		printk("%s%02x", (i%16==0)?"\n":" ", ((u8_t *)bd.addr)[i]);
 	printk("\n");
+	#endif
 	if (++ctx->cur_tx == ctx->num_tx)
 		ctx->cur_tx = 0;
 
