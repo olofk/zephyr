@@ -36,7 +36,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #define LOG_ERR printk
 #undef LOG_DBG
 #define LOG_DBG printk
-#define STATIC 
+#define STATIC
 #endif
 
 /* register offsets */
@@ -193,6 +193,10 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 K_THREAD_STACK_DEFINE(ethoc_thread_stack_area, ETHOC_THREAD_STACK_SIZE);
 struct k_thread ethoc_thread_data;
 
+#define ETHOC_PKT_BUF_LEN 1600
+char __aligned(8) pkt_rx_buf[CONFIG_ETHOC_BD_RX_NUM][ETHOC_PKT_BUF_LEN];
+char __aligned(8) pkt_tx_buf[CONFIG_ETHOC_BD_TX_NUM][ETHOC_PKT_BUF_LEN];
+
 struct ethoc_bd {
 	u32_t stat;
 	u32_t addr;
@@ -201,6 +205,7 @@ struct ethoc_bd {
 struct eth_context {
 	struct net_if *iface;
 	k_tid_t tid;
+	bool polled_mode;
 	mem_addr_t iobase;
 
 	u32_t limit;
@@ -336,12 +341,6 @@ STATIC void ethoc_reset(struct eth_context *ctx)
 	/* clear and disable all interrupts */
 	ethoc_write(ctx, INT_SOURCE, INT_MASK_ALL);
 	ethoc_write(ctx, INT_MASK, 0);
-
-	#if 0
-	tmp = ethoc_read(ctx, MODER);
-	tmp |= MODER_LOOP | MODER_PRO;
-	ethoc_write(ctx, MODER, tmp);
-	#endif
 }
 
 STATIC int ethoc_check_phy(struct eth_context *ctx)
@@ -418,9 +417,6 @@ void ethoc_establish_link(struct eth_context *ctx)
 	ethoc_phy_regread(ctx, ETHOC_PHY_BCONTROL, &bcr);
 }
 
-char __aligned(8) pkt_rx_buf[CONFIG_ETHOC_BD_RX_NUM][1600];
-char __aligned(8) pkt_tx_buf[CONFIG_ETHOC_BD_TX_NUM][1600];
-
 STATIC int ethoc_init_ring(struct eth_context *ctx)
 {
 	struct ethoc_bd bd;
@@ -433,13 +429,6 @@ STATIC int ethoc_init_ring(struct eth_context *ctx)
 
 	ctx->pkt_rx_buf = pkt_rx_buf;
 	ctx->pkt_tx_buf = pkt_tx_buf;
-	if (!ctx->pkt_rx_buf || !ctx->pkt_tx_buf) {
-		LOG_ERR ("alloc buf fails\n");
-		return -1;
-	}
-
-	memset(ctx->pkt_rx_buf, 0xee, CONFIG_ETHOC_BD_RX_NUM*1600);
-	memset(ctx->pkt_tx_buf, 0xee, CONFIG_ETHOC_BD_TX_NUM*1600);
 
 	ethoc_write(ctx, TX_BD_NUM, ctx->num_tx);
 
@@ -453,7 +442,7 @@ STATIC int ethoc_init_ring(struct eth_context *ctx)
 			bd.stat |= TX_BD_WRAP;
 
 		ethoc_write_bd(ctx, i, &bd);
-		bd.addr += 1600;
+		bd.addr += ETHOC_PKT_BUF_LEN;
 		ctx->pkt_tx[i] = NULL;
 	}
 
@@ -465,7 +454,7 @@ STATIC int ethoc_init_ring(struct eth_context *ctx)
 			bd.stat |= RX_BD_WRAP;
 
 		ethoc_write_bd(ctx, ctx->num_tx + i, &bd);
-		bd.addr += 1600;
+		bd.addr += ETHOC_PKT_BUF_LEN;
 	}
 
 	return 0;
@@ -487,12 +476,10 @@ int ethoc_init(struct device *dev)
 
 	ethoc_reset(ctx);
 
-	#if 1
 	clkdiv = MIIMODER_CLKDIV(ctx->eth_clkfreq / 2500000 + 1);
 	ethoc_write(ctx, MIIMODER,
 			    (ethoc_read(ctx, MIIMODER) & MIIMODER_NOPRE) |
 			    clkdiv);
-	#endif
 
 	/* Configure MAC addresses */
 	ethoc_set_mac_address(ctx);
@@ -504,8 +491,6 @@ int ethoc_init(struct device *dev)
 		return -1;
 	}
 
-	#if 1
-
 	if (ethoc_reset_phy(ctx) < 0) {
 		LOG_ERR("ethoc_reset_phy fails\n");
 		return -1;
@@ -516,18 +501,16 @@ int ethoc_init(struct device *dev)
 	/* Checking whether phy reset completed successfully.*/
 	if (ethoc_phy_regread(ctx, ETHOC_PHY_BCONTROL, &phyreset)) {
 		LOG_ERR("ethoc read phy reset fails\n");
-		return 1;
+		return -1;
 	}
 
 	if (phyreset & (1 << 15)) {
 		LOG_ERR("ethoc phy reset fails\n");
-		return 1;
+		return -1;
 	}
 
 	ethoc_advertise_caps(ctx);
 	ethoc_establish_link(ctx);
-
-	#endif
 
 	LOG_DBG("ethoc_init end\n");
 
@@ -552,10 +535,37 @@ STATIC struct net_stats_eth *get_stats(struct device *dev)
 }
 #endif
 
-STATIC unsigned int ethoc_update_rx_stats(struct eth_context *ctx,
+STATIC int ethoc_update_rx_stats(struct eth_context *ctx,
 				struct ethoc_bd *bd)
 {
+	if ((bd->stat & RX_BD_TL) ||
+		(bd->stat & RX_BD_SF) ||
+		(bd->stat & RX_BD_DN) ||
+		(bd->stat & RX_BD_CRC) ||
+		(bd->stat & RX_BD_OR) ||
+		(bd->stat & RX_BD_MISS) ||
+		(bd->stat & RX_BD_LC)) {
+		LOG_ERR("RX error occurs 0x%x\n", bd->stat);
+#ifdef CONFIG_NET_STATISTICS_ETHERNET
+		ctx->stats.errors.rx++;
+#endif
+		return -1;
+	}
 	return 0;
+}
+
+static void ethoc_update_tx_stats(struct eth_context *ctx, struct ethoc_bd *bd)
+{
+	if ((bd->stat & TX_BD_LC) ||
+		(bd->stat & TX_BD_RL) ||
+		(bd->stat & TX_BD_UR) ||
+		(bd->stat & TX_BD_CS) ||
+		(bd->stat & TX_BD_STATS)) {
+		LOG_ERR("TX error occurs 0x%x\n", bd->stat);
+#ifdef CONFIG_NET_STATISTICS_ETHERNET
+		ctx->stats.errors.tx++;
+#endif
+	}
 }
 
 STATIC int ethoc_tx(struct eth_context *ctx)
@@ -578,6 +588,8 @@ STATIC int ethoc_tx(struct eth_context *ctx)
 		}
 
 		LOG_DBG("proc: eth_tx bd.stat 0x%x\n", bd.stat);
+
+		ethoc_update_tx_stats (ctx, &bd);
 
 		if (ctx->pkt_tx[ctx->dty_tx]) {
 			net_pkt_unref(ctx->pkt_tx[ctx->dty_tx]);
@@ -612,22 +624,9 @@ STATIC int ethoc_rx(struct eth_context *ctx)
 
 		size = bd.stat >> 16;
 
-		if (size == 0){
-			/* clear the buffer descriptor so it can be reused */
-			bd.stat &= ~RX_BD_STATS;
-			bd.stat |=  RX_BD_EMPTY;
-			ethoc_write_bd(ctx, entry, &bd);
-			if (++ctx->cur_rx == ctx->num_rx)
-				ctx->cur_rx = 0;
-			LOG_ERR("get zero packag\n");
-			continue;
-		}
-
 		LOG_DBG("proc: eth_rx bd.stat 0x%x\n", bd.stat);
 
-		if (ethoc_update_rx_stats(ctx, &bd) == 0) {
-			
-
+		if ((size >= 4) && (ethoc_update_rx_stats(ctx, &bd) == 0)) {
 			size -= 4; /* strip the CRC */
 			pkt = net_pkt_rx_alloc_with_buffer(ctx->iface, size,
 					   AF_UNSPEC, 0, K_NO_WAIT);
@@ -638,8 +637,8 @@ STATIC int ethoc_rx(struct eth_context *ctx)
 
 			__asm__ volatile ("fence;\n\t");
 
-			#if 1
-			u32_t *p = ctx->pkt_rx_buf + ctx->cur_rx*1600;
+			#if 0
+			u32_t *p = ctx->pkt_rx_buf + ctx->cur_rx*ETHOC_PKT_BUF_LEN;
 			for (int i = 0; i < (size/4+1); i++)
 				{
 					u32_t x = *(p+i);
@@ -649,13 +648,11 @@ STATIC int ethoc_rx(struct eth_context *ctx)
 			#endif
 
 			if (net_pkt_write(pkt, 
-					ctx->pkt_rx_buf + ctx->cur_rx*1600, size)) {
+					ctx->pkt_rx_buf + ctx->cur_rx*ETHOC_PKT_BUF_LEN, size)) {
 				LOG_ERR("Failed to append RX buffer to context buffer");
 				net_pkt_unref(pkt);
 				return -1;
 			}
-
-			__asm__ volatile ("fence;\n\t");
 
 			res = net_recv_data(ctx->iface, pkt);
 			if (res < 0) {
@@ -688,14 +685,6 @@ STATIC void eth_ethoc_txrx(struct eth_context *ctx)
 	u32_t pending;
 	u32_t mask;
 
-	/* Figure out what triggered the interrupt...
-	 * The tricky bit here is that the interrupt source bits get
-	 * set in INT_SOURCE for an event regardless of whether that
-	 * event is masked or not.  Thus, in order to figure out what
-	 * triggered the interrupt, we need to remove the sources
-	 * for all events that are currently masked.  This behaviour
-	 * is not particularly well documented but reasonable...
-	 */
 	mask = ctx->mask;
 	pending = ethoc_read(ctx, INT_SOURCE);
 	pending &= mask;
@@ -757,25 +746,6 @@ void ethoc_thread(void *a, void *b, void *c)
     while (1) {
         eth_ethoc_txrx(ctx);
 		k_sleep(1);
-		#if 0
-		{
-		if (i++ % 5000 == 0)
-		{	 
-		u32_t phyreset;
-		u32_t testid[] = {0,1,2,3,4,5,6,17,18,26,27,29,30,31};
-		printk ("phy read ");
-		for (int i = 0; i < sizeof(testid)/sizeof(u32_t); i++)
-			{
-				if (ethoc_phy_regread(ctx, testid[i], &phyreset)) {
-					return -1;
-				}
-				printk ("[%d] %04x ", testid[i], phyreset);
-			}	
-		
-		printk ("\n");
-		}
-		}
-		#endif
     }
 }
 
@@ -787,9 +757,6 @@ STATIC void eth_initialize(struct net_if *iface)
 	LOG_DBG("eth_initialize");
 
 	ethoc_read_mac_address(ctx);
-
-	LOG_DBG("read back mac %x-%x-%x-%x-%x-%x\n", ctx->mac[0], ctx->mac[1],
-				ctx->mac[2], ctx->mac[3], ctx->mac[4], ctx->mac[5]);
 
 	/* create polling task */
 	ctx->tid = k_thread_create(&ethoc_thread_data, ethoc_thread_stack_area,
@@ -812,18 +779,16 @@ STATIC int eth_tx(struct device *dev, struct net_pkt *pkt)
 	u32_t total_len = net_pkt_get_len(pkt);
 
 	__ASSERT(pkt, "buf pointer is NULL");
-	__ASSERT(pkt->frags, "Frame data missing");
 
 	LOG_DBG("eth_tx enter\n");
  
 	if (total_len > NET_ETH_MAX_FRAME_SIZE) {
-		LOG_DBG("eth_tx len too big\n");
-		eth_stats_update_errors_tx(ctx->iface);
+		LOG_ERR("eth_tx len too big\n");
 		return -1;
 	}
 
 	if ((ctx->cur_tx == ctx->dty_tx) && (NULL != ctx->pkt_tx[ctx->cur_tx])) {
-		LOG_DBG("eth_tx busy\n");
+		LOG_ERR("eth_tx busy\n");
 		return -EBUSY;
 		}
 
@@ -842,7 +807,7 @@ STATIC int eth_tx(struct device *dev, struct net_pkt *pkt)
 	ctx->pkt_tx[ctx->cur_tx] = pkt;
 	net_pkt_ref(pkt);
 
-	#if 1
+	#if 0
 	u32_t *p = bd.addr;
 	for (int i = 0; i < (total_len/4+1); i++)
 		{
