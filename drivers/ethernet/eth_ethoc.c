@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Based on linux ethoc.c driver. */
+/* based on linux ethoc.c driver. */
 
 #define LOG_MODULE_NAME eth_ethoc
 #define LOG_LEVEL CONFIG_ETHERNET_LOG_LEVEL
@@ -29,14 +29,6 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #ifdef CONFIG_SHARED_IRQ
 #include <shared_irq.h>
-#endif
-
-#if 1
-#undef LOG_ERR
-#define LOG_ERR printk
-#undef LOG_DBG
-#define LOG_DBG printk
-#define STATIC
 #endif
 
 /* register offsets */
@@ -185,9 +177,6 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #define	ETHOC_BD_BASE		0x400
 #define	ETHOC_BUFSIZ		1536
 
-#define CONFIG_ETHOC_BD_TX_NUM 8
-#define CONFIG_ETHOC_BD_RX_NUM 8
-
 #define PRIORITY  7
 #define ETHOC_THREAD_STACK_SIZE 2048
 K_THREAD_STACK_DEFINE(ethoc_thread_stack_area, ETHOC_THREAD_STACK_SIZE);
@@ -231,14 +220,14 @@ struct eth_context {
 
 /* SMSC911x helper functions */
 
-STATIC u32_t ethoc_read(struct eth_context *ctx, u32_t reg)
+static u32_t ethoc_read(struct eth_context *ctx, u32_t reg)
 {
 	u32_t val;
 	val = *(volatile u32_t *)(ctx->iobase + reg);
 	return val;
 }
 
-STATIC void ethoc_write(struct eth_context *ctx, u32_t reg, u32_t val)
+static void ethoc_write(struct eth_context *ctx, u32_t reg, u32_t val)
 {
 	*(volatile u32_t *)(ctx->iobase + reg) = val;
 }
@@ -289,18 +278,16 @@ int ethoc_phy_regwrite(struct eth_context *ctx, u8_t reg, u32_t val)
 	return -EBUSY;
 }
 
-STATIC void ethoc_set_mac_address(struct eth_context *ctx)
+static void ethoc_set_mac_address(struct eth_context *ctx)
 {
 	u8_t *mac = (u8_t *) ctx->mac;
-	u32_t reg1;
-	u32_t reg2;
 
 	ethoc_write(ctx, MAC_ADDR0, (mac[2] << 24) | (mac[3] << 16) |
 				     (mac[4] <<  8) | (mac[5] <<  0));
 	ethoc_write(ctx, MAC_ADDR1, (mac[0] <<  8) | (mac[1] <<  0));
 }
 
-STATIC int ethoc_read_mac_address(struct eth_context *ctx)
+static int ethoc_read_mac_address(struct eth_context *ctx)
 {
 	u8_t *mac = (u8_t *) ctx->mac;
 	u32_t reg;
@@ -318,7 +305,7 @@ STATIC int ethoc_read_mac_address(struct eth_context *ctx)
 	return 0;
 }
 
-STATIC void ethoc_reset(struct eth_context *ctx)
+static void ethoc_reset(struct eth_context *ctx)
 {
 	u32_t tmp;
 
@@ -343,7 +330,7 @@ STATIC void ethoc_reset(struct eth_context *ctx)
 	ethoc_write(ctx, INT_MASK, 0);
 }
 
-STATIC int ethoc_check_phy(struct eth_context *ctx)
+static int ethoc_check_phy(struct eth_context *ctx)
 {
 	u32_t phyid1, phyid2;
 
@@ -370,9 +357,6 @@ int ethoc_reset_phy(struct eth_context *ctx)
 	}
 
 	val |= 1 << 15;
-	#if 0
-	val |= 1 << 14;
-	#endif
 
 	if (ethoc_phy_regwrite(ctx, ETHOC_PHY_BCONTROL, val)) {
 		return -1;
@@ -381,7 +365,7 @@ int ethoc_reset_phy(struct eth_context *ctx)
 	return 0;
 }
 
-STATIC void ethoc_read_bd(struct eth_context *ctx, int index,
+static void ethoc_read_bd(struct eth_context *ctx, int index,
 		struct ethoc_bd *bd)
 {
 	u32_t offset = ETHOC_BD_BASE + (index * sizeof(struct ethoc_bd));
@@ -389,7 +373,7 @@ STATIC void ethoc_read_bd(struct eth_context *ctx, int index,
 	bd->addr = ethoc_read(ctx, offset + 4);
 }
 
-STATIC void ethoc_write_bd(struct eth_context *ctx, int index,
+static void ethoc_write_bd(struct eth_context *ctx, int index,
 		const struct ethoc_bd *bd)
 {
 	u32_t offset = ETHOC_BD_BASE + (index * sizeof(struct ethoc_bd));
@@ -417,25 +401,24 @@ void ethoc_establish_link(struct eth_context *ctx)
 	ethoc_phy_regread(ctx, ETHOC_PHY_BCONTROL, &bcr);
 }
 
-STATIC int ethoc_init_ring(struct eth_context *ctx)
+static int ethoc_init_ring(struct eth_context *ctx)
 {
 	struct ethoc_bd bd;
 	int i;
-	struct net_pkt *pkt;
 
 	ctx->cur_tx = 0;
 	ctx->dty_tx = 0;
 	ctx->cur_rx = 0;
 
-	ctx->pkt_rx_buf = pkt_rx_buf;
-	ctx->pkt_tx_buf = pkt_tx_buf;
+	ctx->pkt_rx_buf = (u8_t *)pkt_rx_buf;
+	ctx->pkt_tx_buf = (u8_t *)pkt_tx_buf;
 
 	ethoc_write(ctx, TX_BD_NUM, ctx->num_tx);
 
 	/* setup transmission buffers */
 
 	bd.stat = TX_BD_IRQ | TX_BD_CRC;
-	bd.addr = ctx->pkt_tx_buf;
+	bd.addr = (u32_t)ctx->pkt_tx_buf;
 
 	for (i = 0; i < ctx->num_tx; i++) {
 		if (i == ctx->num_tx - 1)
@@ -447,7 +430,7 @@ STATIC int ethoc_init_ring(struct eth_context *ctx)
 	}
 
 	bd.stat = RX_BD_EMPTY | RX_BD_IRQ;
-	bd.addr = ctx->pkt_rx_buf;
+	bd.addr = (u32_t)ctx->pkt_rx_buf;
 
 	for (i = 0; i < ctx->num_rx; i++) {
 		if (i == ctx->num_rx - 1)
@@ -468,7 +451,7 @@ int ethoc_init(struct device *dev)
 
 	ctx->num_bd = ctx->num_tx + ctx->num_rx;
 	ctx->phy = 1;
-	ctx->limit = 40;
+	ctx->limit = 12;
 
 	ethoc_set_mac_address(ctx);
 
@@ -519,7 +502,7 @@ int ethoc_init(struct device *dev)
 
 /* Driver functions */
 
-STATIC enum ethernet_hw_caps eth_ethoc_get_capabilities(struct device *dev)
+static enum ethernet_hw_caps eth_ethoc_get_capabilities(struct device *dev)
 {
 	ARG_UNUSED(dev);
 
@@ -527,7 +510,7 @@ STATIC enum ethernet_hw_caps eth_ethoc_get_capabilities(struct device *dev)
 }
 
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
-STATIC struct net_stats_eth *get_stats(struct device *dev)
+static struct net_stats_eth *get_stats(struct device *dev)
 {
 	struct eth_context *context = dev->driver_data;
 
@@ -535,7 +518,7 @@ STATIC struct net_stats_eth *get_stats(struct device *dev)
 }
 #endif
 
-STATIC int ethoc_update_rx_stats(struct eth_context *ctx,
+static int ethoc_update_rx_stats(struct eth_context *ctx,
 				struct ethoc_bd *bd)
 {
 	if ((bd->stat & RX_BD_TL) ||
@@ -568,7 +551,7 @@ static void ethoc_update_tx_stats(struct eth_context *ctx, struct ethoc_bd *bd)
 	}
 }
 
-STATIC int ethoc_tx(struct eth_context *ctx)
+static int ethoc_tx(struct eth_context *ctx)
 {
 	int count;
 	struct ethoc_bd bd;
@@ -603,7 +586,7 @@ STATIC int ethoc_tx(struct eth_context *ctx)
 	return 0;
 }
 
-STATIC int ethoc_rx(struct eth_context *ctx)
+static int ethoc_rx(struct eth_context *ctx)
 {
 	int count;
 	int res;
@@ -637,16 +620,6 @@ STATIC int ethoc_rx(struct eth_context *ctx)
 
 			__asm__ volatile ("fence;\n\t");
 
-			#if 0
-			u32_t *p = ctx->pkt_rx_buf + ctx->cur_rx*ETHOC_PKT_BUF_LEN;
-			for (int i = 0; i < (size/4+1); i++)
-				{
-					u32_t x = *(p+i);
-					*(p+i) = ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >>  8) |                      \
-					(((x) & 0x0000ff00) <<  8) | (((x) & 0x000000ff) << 24));
-				}
-			#endif
-
 			if (net_pkt_write(pkt, 
 					ctx->pkt_rx_buf + ctx->cur_rx*ETHOC_PKT_BUF_LEN, size)) {
 				LOG_ERR("Failed to append RX buffer to context buffer");
@@ -660,13 +633,6 @@ STATIC int ethoc_rx(struct eth_context *ctx)
 				net_pkt_unref(pkt);
 				return -1;
 			}
-
-			#if 0
-			printk("proc: eth_rx receive 1 packets %d\n", size);
-			for (int i = 0; i < size; i++)
-				printk("%s%02x", (i%16==0)?"\n":" ", ctx->pkt_rx_buf[i]);
-			printk("\n");
-			#endif
 		}
 
 		/* clear the buffer descriptor so it can be reused */
@@ -680,7 +646,7 @@ STATIC int ethoc_rx(struct eth_context *ctx)
 	return 0;
 }
 
-STATIC void eth_ethoc_txrx(struct eth_context *ctx)
+static void eth_ethoc_txrx(struct eth_context *ctx)
 {
 	u32_t pending;
 	u32_t mask;
@@ -714,14 +680,13 @@ void ethoc_thread(void *a, void *b, void *c)
 {
 	struct eth_context *ctx = (struct eth_context *)a;
 	ctx->mask = INT_MASK_ALL;
-	u32_t i = 0;
 	u32_t tmp = 0;
 
 	/* wait auto negotiation done */
 	do {
 		if (ethoc_phy_regread(ctx, ETHOC_PHY_CS, &tmp)) {
 			LOG_ERR("ethoc read phy reset fails\n");
-			return 1;
+			return;
 		k_sleep(1);
 		}
 	} while (!(tmp & (1<<12)));
@@ -732,7 +697,7 @@ void ethoc_thread(void *a, void *b, void *c)
 	do {
 		if (ethoc_phy_regread(ctx, ETHOC_PHY_BSTATUS, &tmp)) {
 			LOG_ERR("ethoc read phy reset fails\n");
-			return 1;
+			return;
 		k_sleep(1);
 		}
 	} while (!(tmp & (1<<2)));
@@ -745,11 +710,11 @@ void ethoc_thread(void *a, void *b, void *c)
 
     while (1) {
         eth_ethoc_txrx(ctx);
-		k_sleep(1);
+		k_sleep(2);
     }
 }
 
-STATIC void eth_initialize(struct net_if *iface)
+static void eth_initialize(struct net_if *iface)
 {
 	struct device *dev = net_if_get_device(iface);
 	struct eth_context *ctx = dev->driver_data;
@@ -771,7 +736,7 @@ STATIC void eth_initialize(struct net_if *iface)
 	ethernet_init(iface);
 }
 
-STATIC int eth_tx(struct device *dev, struct net_pkt *pkt)
+static int eth_tx(struct device *dev, struct net_pkt *pkt)
 {
 	struct eth_context *ctx = dev->driver_data;
 	struct ethoc_bd bd;
@@ -807,16 +772,6 @@ STATIC int eth_tx(struct device *dev, struct net_pkt *pkt)
 	ctx->pkt_tx[ctx->cur_tx] = pkt;
 	net_pkt_ref(pkt);
 
-	#if 0
-	u32_t *p = bd.addr;
-	for (int i = 0; i < (total_len/4+1); i++)
-		{
-			u32_t x = *(p+i);
-			*(p+i) = ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >>  8) |                      \
-      		(((x) & 0x0000ff00) <<  8) | (((x) & 0x000000ff) << 24));
-		}	 
-	#endif
-
 	__asm__ volatile ("fence;\n\t");
 
 	bd.stat &= ~(TX_BD_STATS | TX_BD_LEN_MASK);
@@ -825,12 +780,6 @@ STATIC int eth_tx(struct device *dev, struct net_pkt *pkt)
 
 	bd.stat |= TX_BD_READY;
 	ethoc_write_bd(ctx, entry, &bd);
-	#if 0
-	printk("proc: eth_tx send 1 packets %d\n", total_len);
-	for (int i = 0; i < total_len; i++)
-		printk("%s%02x", (i%16==0)?"\n":" ", ((u8_t *)bd.addr)[i]);
-	printk("\n");
-	#endif
 	if (++ctx->cur_tx == ctx->num_tx)
 		ctx->cur_tx = 0;
 
@@ -839,7 +788,7 @@ STATIC int eth_tx(struct device *dev, struct net_pkt *pkt)
 	return 0;
 }
 
-STATIC const struct ethernet_api api_funcs = {
+static const struct ethernet_api api_funcs = {
 	.iface_api.init = eth_initialize,
 
 	.get_capabilities = eth_ethoc_get_capabilities,
@@ -865,9 +814,9 @@ int eth_init(struct device *dev)
 	return ret;
 }
 
-STATIC struct eth_context eth_0_context = {
-	.iobase = 0x80003000,
-	.eth_clkfreq = 25000000,
+static struct eth_context eth_0_context = {
+	.iobase = DT_OPENCORES_ETHOC_0_BASE_ADDRESS,
+	.eth_clkfreq = CONFIG_ETHOC_CLKFREQ,
 	.num_tx = CONFIG_ETHOC_BD_TX_NUM,
 	.num_rx = CONFIG_ETHOC_BD_RX_NUM,
 	.num_bd = CONFIG_ETHOC_BD_TX_NUM + CONFIG_ETHOC_BD_RX_NUM,

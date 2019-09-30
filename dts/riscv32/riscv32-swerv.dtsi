@@ -60,11 +60,10 @@
 			#size-cells = <0>;
 		};
 
-		eth: ethernet@123 {
+		eth: ethernet@80003000 {
 			compatible = "opencores,ethoc";
-			reg = <123 123>;
+			reg = <0x80003000 0x1000>;
 			status = "disabled";
-			local-mac-address = [00 00 94 00 83 00];
 			label = "ETH";
 		};
 	};

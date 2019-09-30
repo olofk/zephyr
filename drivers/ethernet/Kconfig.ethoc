@@ -15,7 +15,13 @@ menuconfig ETH_ETHOC
 
 if ETH_ETHOC
 
-config ETH_ETHOC_TEST
-       def_int 8
+config ETHOC_BD_TX_NUM
+		def_int 16
+
+config ETHOC_BD_RX_NUM
+		def_int 24
+
+config ETHOC_CLKFREQ
+		def_int 25000000
 
 endif # ETH_ETHOC
