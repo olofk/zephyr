@@ -59,5 +59,12 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 		};
+
+		eth: ethernet@80003000 {
+			compatible = "opencores,ethoc";
+			reg = <0x80003000 0x1000>;
+			status = "disabled";
+			label = "ETH";
+		};
 	};
 };
