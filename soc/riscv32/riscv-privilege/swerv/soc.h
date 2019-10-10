@@ -10,6 +10,9 @@
 #include <soc_common.h>
 #include <generated_dts_board.h>
 
+#undef SOC_ERET
+#define SOC_ERET fence; mret
+
 #define LED0_GPIO_CONTROLLER         "LED0"
 #define LED0_GPIO_PIN                0
 #define LED0_GPIO_ADDRESS            0x80001010

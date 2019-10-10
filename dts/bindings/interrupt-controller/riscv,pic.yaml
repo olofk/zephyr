@@ -1,0 +1,36 @@
+#
+# Copyright (c) 2019
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+---
+title: RISC-V PIC
+version: 0.1
+
+description: >
+    This binding describes the RISC-V Programmable Interrupt Controller
+
+properties:
+  compatible:
+      category: required
+      type: string
+      description: compatible strings
+      constraint: "riscv,pic"
+      generation: define
+
+  reg:
+      category: required
+      type: int
+      description: mmio register space
+      generation: define
+
+  riscv,max-priority:
+      type: int
+      description: maximum interrupt priority
+      category: required
+      generation: define
+
+"#cells":
+  - irq
+  - priority
+...

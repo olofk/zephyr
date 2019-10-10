@@ -67,6 +67,14 @@ void riscv_plic_set_priority(u32_t irq, u32_t priority);
 int riscv_plic_get_irq(void);
 #endif
 
+#if defined(CONFIG_RISCV_HAS_PIC)
+void riscv_pic_irq_enable(u32_t irq);
+void riscv_pic_irq_disable(u32_t irq);
+int riscv_pic_irq_is_enabled(u32_t irq);
+void riscv_pic_set_priority(u32_t irq, u32_t priority);
+int riscv_pic_get_irq(void);
+#endif
+
 #endif /* !_ASMLANGUAGE */
 
 #endif /* __SOC_COMMON_H_ */

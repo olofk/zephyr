@@ -40,8 +40,6 @@
 
 #include <drivers/serial/uart_ns16550.h>
 
-#undef CONFIG_UART_INTERRUPT_DRIVEN
-
 /* register definitions */
 
 #define REG_THR 0x00  /* Transmitter holding reg.       */

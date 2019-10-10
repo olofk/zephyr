@@ -26,6 +26,13 @@ void z_irq_spurious(void *unused)
 	}
 #endif
 
+#if defined(CONFIG_RISCV_HAS_PIC)
+	if (mcause == RISCV_MACHINE_EXT_IRQ) {
+		printk("PLIC interrupt line causing the IRQ: %d\n",
+		       riscv_pic_get_irq());
+	}
+#endif
+
 	z_NanoFatalErrorHandler(_NANO_ERR_SPURIOUS_INT, &_default_esf);
 }
 
@@ -39,6 +46,8 @@ int z_arch_irq_connect_dynamic(unsigned int irq, unsigned int priority,
 	z_isr_install(irq, routine, parameter);
 #if defined(CONFIG_RISCV_HAS_PLIC)
 	riscv_plic_set_priority(irq, priority);
+#elif defined(CONFIG_RISCV_HAS_PIC)
+	riscv_pic_set_priority(irq, priority);
 #else
 	ARG_UNUSED(priority);
 #endif
