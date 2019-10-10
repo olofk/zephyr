@@ -22,6 +22,13 @@ void z_arch_irq_enable(unsigned int irq)
 	}
 #endif
 
+#if defined(CONFIG_RISCV_HAS_PIC)
+	if (irq > RISCV_MAX_GENERIC_IRQ) {
+		riscv_pic_irq_enable(irq);
+		return;
+	}
+#endif
+
 	/*
 	 * CSR mie register is updated using atomic instruction csrrs
 	 * (atomic read and set bits in CSR register)
@@ -42,6 +49,13 @@ void z_arch_irq_disable(unsigned int irq)
 	}
 #endif
 
+#if defined(CONFIG_RISCV_HAS_PIC)
+	if (irq > RISCV_MAX_GENERIC_IRQ) {
+		riscv_pic_irq_disable(irq);
+		return;
+	}
+#endif
+
 	/*
 	 * Use atomic instruction csrrc to disable device interrupt in mie CSR.
 	 * (atomic read and clear bits in CSR register)
@@ -58,6 +72,11 @@ int z_arch_irq_is_enabled(unsigned int irq)
 #if defined(CONFIG_RISCV_HAS_PLIC)
 	if (irq > RISCV_MAX_GENERIC_IRQ)
 		return riscv_plic_irq_is_enabled(irq);
+#endif
+
+#if defined(CONFIG_RISCV_HAS_PIC)
+	if (irq > RISCV_MAX_GENERIC_IRQ)
+		return riscv_pic_irq_is_enabled(irq);
 #endif
 
 	__asm__ volatile ("csrr %0, mie" : "=r" (mie));

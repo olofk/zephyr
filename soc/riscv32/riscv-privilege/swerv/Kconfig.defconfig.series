@@ -20,9 +20,13 @@ config RISCV_HAS_PLIC
 	bool
 	default n
 
+config RISCV_HAS_PIC
+	bool
+	default y
+
 config NUM_IRQS
 	int
-	default 8
+	default 64
 
 if SERIAL
 

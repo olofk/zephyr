@@ -110,6 +110,15 @@ config ARCV2_INTERRUPT_UNIT
 	  building a processor, you can configure the processor to include an
 	  interrupt unit. The ARCv2 interrupt unit is highly programmable.
 
+config PIC
+	bool "Programmable Interrupt Controller (PIC)"
+	default y
+	depends on SOC_FAMILY_RISCV_PRIVILEGE
+	select RISCV_HAS_PIC
+	help
+	  Programmable Interrupt Controller provides support
+	  for external interrupt lines defined by the RISC-V SoC;
+
 config PLIC
 	bool "Platform Level Interrupt Controller (PLIC)"
 	default y

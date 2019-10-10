@@ -21,5 +21,10 @@ config RISCV_HAS_PLIC
 	help
 	  Does the SOC provide support for a Platform Level Interrupt Controller
 
+config RISCV_HAS_PIC
+	bool "Does the SOC provide support for a Programmable Interrupt Controller"
+	depends on SOC_FAMILY_RISCV_PRIVILEGE
+	help
+	  Does the SOC provide support for a Programmable Interrupt Controller
 
 source "soc/riscv32/riscv-privilege/*/Kconfig.soc"
