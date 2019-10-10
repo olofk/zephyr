@@ -48,12 +48,16 @@ static int save_irq;
 
 static u32_t pic_read(u32_t reg)
 {
+#ifdef DT_RISCV_PIC_0_BASE_ADDRESS
 	return *(volatile u32_t *)(DT_RISCV_PIC_0_BASE_ADDRESS + reg);
+#endif
 }
 
 static void pic_write(u32_t reg, u32_t val)
 {
+#ifdef DT_RISCV_PIC_0_BASE_ADDRESS
 	*(volatile u32_t *)(DT_RISCV_PIC_0_BASE_ADDRESS + reg) = val;
+#endif
 }
 
 void riscv_pic_irq_enable(u32_t irq)

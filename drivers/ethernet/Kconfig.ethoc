@@ -21,7 +21,4 @@ config ETHOC_BD_TX_NUM
 config ETHOC_BD_RX_NUM
 		def_int 24
 
-config ETHOC_CLKFREQ
-		def_int 50000000
-
 endif # ETH_ETHOC

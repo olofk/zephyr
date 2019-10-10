@@ -76,6 +76,8 @@
 		eth: ethernet@80003000 {
 			compatible = "opencores,ethoc";
 			reg = <0x80003000 0x1000>;
+			interrupt-parent = <&pic>;
+			interrupts = <15 15>;
 			status = "disabled";
 			label = "ETH";
 		};

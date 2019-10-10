@@ -182,6 +182,8 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 K_THREAD_STACK_DEFINE(ethoc_thread_stack_area, ETHOC_THREAD_STACK_SIZE);
 struct k_thread ethoc_thread_data;
 
+static struct device DEVICE_NAME_GET(eth_ethoc_0);
+
 #define ETHOC_PKT_BUF_LEN 1600
 char __aligned(8) pkt_rx_buf[CONFIG_ETHOC_BD_RX_NUM][ETHOC_PKT_BUF_LEN];
 char __aligned(8) pkt_tx_buf[CONFIG_ETHOC_BD_TX_NUM][ETHOC_PKT_BUF_LEN];
@@ -452,6 +454,7 @@ int ethoc_init(struct device *dev)
 	ctx->num_bd = ctx->num_tx + ctx->num_rx;
 	ctx->phy = 1;
 	ctx->limit = 12;
+	ctx->mask = INT_MASK_ALL;
 
 	ethoc_set_mac_address(ctx);
 
@@ -559,15 +562,20 @@ static int ethoc_tx(struct eth_context *ctx)
 	for (count = 0; count < ctx->limit; ++count) {
 		u32_t entry;
 
+		if ((ctx->dty_tx == ctx->cur_tx) && (ctx->pkt_tx[ctx->dty_tx] == NULL)) {
+			LOG_DBG("ethoc_tx is empty\n");
+			break;
+		}
+
 		entry = ctx->dty_tx;
 
 		LOG_DBG("ethoc_tx get %d\n", entry);
 
 		ethoc_read_bd(ctx, entry, &bd);
 
-		if ((bd.stat & TX_BD_READY) || (ctx->dty_tx == ctx->cur_tx)) {
+		if (bd.stat & TX_BD_READY) {
 			LOG_DBG("ethoc_tx no ready\n");
-			return 0;
+			break;
 		}
 
 		LOG_DBG("proc: eth_tx bd.stat 0x%x\n", bd.stat);
@@ -575,12 +583,12 @@ static int ethoc_tx(struct eth_context *ctx)
 		ethoc_update_tx_stats (ctx, &bd);
 
 		if (ctx->pkt_tx[ctx->dty_tx]) {
-			net_pkt_unref(ctx->pkt_tx[ctx->dty_tx]);
-			LOG_DBG("ethoc_tx unref %d\n", entry);
 			ctx->pkt_tx[ctx->dty_tx] = NULL;
 		}
-		if (++ctx->dty_tx == ctx->num_tx)
+		if (ctx->dty_tx == ctx->num_tx-1)
 			ctx->dty_tx = 0;
+		else
+			ctx->dty_tx++;
 	}
 
 	return 0;
@@ -615,7 +623,7 @@ static int ethoc_rx(struct eth_context *ctx)
 					   AF_UNSPEC, 0, K_NO_WAIT);
 			if (!pkt) {
 				LOG_ERR("Failed to obtain RX buffer");
-				return -1;
+				goto next;
 			}
 
 			__asm__ volatile ("fence;\n\t");
@@ -624,23 +632,26 @@ static int ethoc_rx(struct eth_context *ctx)
 					ctx->pkt_rx_buf + ctx->cur_rx*ETHOC_PKT_BUF_LEN, size)) {
 				LOG_ERR("Failed to append RX buffer to context buffer");
 				net_pkt_unref(pkt);
-				return -1;
+				goto next;
 			}
 
 			res = net_recv_data(ctx->iface, pkt);
 			if (res < 0) {
 				LOG_ERR("Failed to enqueue frame into RX queue: %d", res);
 				net_pkt_unref(pkt);
-				return -1;
+				goto next;
 			}
 		}
 
+next:
 		/* clear the buffer descriptor so it can be reused */
 		bd.stat &= ~RX_BD_STATS;
 		bd.stat |=  RX_BD_EMPTY;
 		ethoc_write_bd(ctx, entry, &bd);
-		if (++ctx->cur_rx == ctx->num_rx)
+		if (ctx->cur_rx == ctx->num_rx-1)
 			ctx->cur_rx = 0;
+		else
+			ctx->cur_rx++;
 	}
 
 	return 0;
@@ -676,11 +687,35 @@ static void eth_ethoc_txrx(struct eth_context *ctx)
 	}
 }
 
+static void eth_ethoc_txrx_irq(struct device *dev)
+{
+	eth_ethoc_txrx(dev->driver_data);
+}
+
 void ethoc_thread(void *a, void *b, void *c)
 {
 	struct eth_context *ctx = (struct eth_context *)a;
-	ctx->mask = INT_MASK_ALL;
 	u32_t tmp = 0;
+
+	tmp = ethoc_read(ctx, MODER);
+	tmp |= MODER_RXEN | MODER_TXEN;
+	ethoc_write(ctx, MODER, tmp);
+
+    while (1) {
+        eth_ethoc_txrx(ctx);
+		k_sleep(2);
+    }
+}
+
+static void eth_initialize(struct net_if *iface)
+{
+	struct device *dev = net_if_get_device(iface);
+	struct eth_context *ctx = dev->driver_data;
+	u32_t tmp;
+
+	LOG_DBG("eth_initialize");
+
+	ethoc_read_mac_address(ctx);
 
 	/* wait auto negotiation done */
 	do {
@@ -704,29 +739,24 @@ void ethoc_thread(void *a, void *b, void *c)
 
 	LOG_DBG ("phy read ETHOC_PHY_BSTATUS is %x\n", tmp);
 
-	tmp = ethoc_read(ctx, MODER);
-	tmp |= MODER_RXEN | MODER_TXEN;
-	ethoc_write(ctx, MODER, tmp);
-
-    while (1) {
-        eth_ethoc_txrx(ctx);
-		k_sleep(2);
-    }
-}
-
-static void eth_initialize(struct net_if *iface)
-{
-	struct device *dev = net_if_get_device(iface);
-	struct eth_context *ctx = dev->driver_data;
-
-	LOG_DBG("eth_initialize");
-
-	ethoc_read_mac_address(ctx);
-
 	/* create polling task */
-	ctx->tid = k_thread_create(&ethoc_thread_data, ethoc_thread_stack_area,
-			(size_t)ETHOC_THREAD_STACK_SIZE, ethoc_thread, ctx, NULL, NULL,
-			PRIORITY, 0, K_NO_WAIT);
+	if (ctx->polled_mode) {
+		ctx->tid = k_thread_create(&ethoc_thread_data, ethoc_thread_stack_area,
+				(size_t)ETHOC_THREAD_STACK_SIZE, ethoc_thread, ctx, NULL, NULL,
+				PRIORITY, 0, K_NO_WAIT);
+	}
+	else {
+		IRQ_CONNECT(DT_OPENCORES_ETHOC_0_IRQ_0,
+                    DT_OPENCORES_ETHOC_0_IRQ_0_PRIORITY,
+                    eth_ethoc_txrx_irq, DEVICE_GET(eth_ethoc_0), 0);
+        irq_enable(DT_OPENCORES_ETHOC_0_IRQ_0);
+		ethoc_write(ctx, INT_SOURCE, ctx->mask);
+        ethoc_write(ctx, INT_MASK, INT_MASK_ALL);
+
+		tmp = ethoc_read(ctx, MODER);
+		tmp |= MODER_RXEN | MODER_TXEN;
+		ethoc_write(ctx, MODER, tmp);
+	}
 
 	net_if_set_link_addr(iface, ctx->mac, sizeof(ctx->mac),
 			     NET_LINK_ETHERNET);
@@ -753,8 +783,8 @@ static int eth_tx(struct device *dev, struct net_pkt *pkt)
 	}
 
 	if ((ctx->cur_tx == ctx->dty_tx) && (NULL != ctx->pkt_tx[ctx->cur_tx])) {
-		LOG_ERR("eth_tx busy\n");
-		return -EBUSY;
+		LOG_DBG("eth_tx busy\n");
+		return -1;
 		}
 
 	entry = ctx->cur_tx;
@@ -767,10 +797,9 @@ static int eth_tx(struct device *dev, struct net_pkt *pkt)
 		bd.stat &= ~TX_BD_PAD;
 
 	if (net_pkt_read(pkt, (void *)bd.addr, total_len)) {
+		LOG_ERR("eth_tx net_pkt_read fails\n");
 		return -1;
 	}
-	ctx->pkt_tx[ctx->cur_tx] = pkt;
-	net_pkt_ref(pkt);
 
 	__asm__ volatile ("fence;\n\t");
 
@@ -780,8 +809,12 @@ static int eth_tx(struct device *dev, struct net_pkt *pkt)
 
 	bd.stat |= TX_BD_READY;
 	ethoc_write_bd(ctx, entry, &bd);
-	if (++ctx->cur_tx == ctx->num_tx)
+	ctx->pkt_tx[ctx->cur_tx] = pkt;
+
+	if (ctx->cur_tx == ctx->num_tx-1)
 		ctx->cur_tx = 0;
+	else
+		ctx->cur_tx++;
 
 	LOG_DBG("eth_tx leave\n");
 
@@ -800,8 +833,6 @@ static const struct ethernet_api api_funcs = {
 
 /* Bindings to the platform */
 
-static struct device DEVICE_NAME_GET(eth_ethoc_0);
-
 int eth_init(struct device *dev)
 {
 	int ret = ethoc_init(dev);
@@ -816,7 +847,8 @@ int eth_init(struct device *dev)
 
 static struct eth_context eth_0_context = {
 	.iobase = DT_OPENCORES_ETHOC_0_BASE_ADDRESS,
-	.eth_clkfreq = CONFIG_ETHOC_CLKFREQ,
+	.polled_mode = true,
+	.eth_clkfreq = CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC,
 	.num_tx = CONFIG_ETHOC_BD_TX_NUM,
 	.num_rx = CONFIG_ETHOC_BD_RX_NUM,
 	.num_bd = CONFIG_ETHOC_BD_TX_NUM + CONFIG_ETHOC_BD_RX_NUM,
