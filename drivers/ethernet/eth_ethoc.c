@@ -847,7 +847,7 @@ int eth_init(struct device *dev)
 
 static struct eth_context eth_0_context = {
 	.iobase = DT_OPENCORES_ETHOC_0_BASE_ADDRESS,
-	.polled_mode = true,
+	.polled_mode = false,
 	.eth_clkfreq = CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC,
 	.num_tx = CONFIG_ETHOC_BD_TX_NUM,
 	.num_rx = CONFIG_ETHOC_BD_RX_NUM,
