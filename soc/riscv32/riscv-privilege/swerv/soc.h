@@ -12,6 +12,8 @@
 
 #define LED0_GPIO_CONTROLLER         "LED0"
 #define LED0_GPIO_PIN                0
+#define LED0_GPIO_ADDRESS            0x80001010
+#define LED0_GPIO_MASK               0x00000001
 
 #define RISCV_MTIME_BASE             0x80001020
 #define RISCV_MTIMECMP_BASE          0x80001028
