@@ -47,6 +47,13 @@ config RISCV_RAM_SIZE
 	hex
 	default 0x8000
 
+if GPIO
+
+config GPIO_MMIO32
+	def_bool y
+
+endif # GPIO
+
 if SERIAL
 
 config UART_BITBANG
