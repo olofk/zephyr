@@ -131,10 +131,10 @@ static inline u64_t __ticks_to_ms(s64_t ticks)
 
 #ifdef _NEED_PRECISE_TICK_MS_CONVERSION
 	/* use 64-bit math to keep precision */
-	return (u64_t)ticks * MSEC_PER_SEC / (u64_t)CONFIG_SYS_CLOCK_TICKS_PER_SEC;
+	return (u64_t)ticks * (MSEC_PER_SEC / (u32_t)CONFIG_SYS_CLOCK_TICKS_PER_SEC);
 #else
 	/* simple multiplication keeps precision */
-	return (u64_t)ticks * MSEC_PER_SEC / (u64_t)CONFIG_SYS_CLOCK_TICKS_PER_SEC;
+	return (u64_t)(u32_t)(ticks * (MSEC_PER_SEC / (u32_t)CONFIG_SYS_CLOCK_TICKS_PER_SEC));
 #endif
 
 #else
